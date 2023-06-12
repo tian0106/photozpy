@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(
     name = "photozpy",
@@ -7,12 +7,15 @@ setup(
     author_email = "sheng2@clemson.edu",
     description = "Automatic pipeline for data analysis UVOT and SARA images.",
 
-    packages = find_packages('src', exclude = ["tests"]),
+    packages = find_namespace_packages(["swiftz"]),
 
-    install_requires(numpy,
-                     pandas,
-                     tqdm,
-                     astropy,
-                     swifttools)
+    install_requires = [
+        "numpy",
+        "pandas",
+        "tqdm",
+        "astropy",
+        "swifttools",
+        "jupyterlab"
+        ]
 
 )
