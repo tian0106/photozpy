@@ -1,2 +1,4 @@
 *checkpoints
-*egg_info
+*egg_info/*
+.gitingore
+photozpy.egg-info/
