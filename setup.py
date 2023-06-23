@@ -6,16 +6,17 @@ setup(
     author = "Yong Sheng",
     author_email = "sheng2@clemson.edu",
     description = "Automatic pipeline for data analysis UVOT and SARA images.",
+    
+    package_dir = {"": "src"},
 
-    packages = find_packages(),
+    packages = find_packages(where="src"),
 
     install_requires = [
         "numpy",
         "pandas",
         "tqdm",
         "astropy",
-        "swifttools",
-        "jupyterlab"
+        "swifttools"
         ]
 
 )

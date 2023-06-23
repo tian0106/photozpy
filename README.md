@@ -8,7 +8,7 @@ The photo-z analysis pipeline with python
 2. Create conda environment
 	Open your terminal
 	```bash
-	conda create --name photozpy python setuptools
+	conda create --name photozpy python setuptools jupyterlab
 	```
 
 3. Activate conda environment
