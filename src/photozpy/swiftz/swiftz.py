@@ -186,7 +186,7 @@ class UVOTZ():
                     if oq[i].uvot_mode == uvotmode:
                         date_ = oq[i].begin.strftime("%Y-%m-%d %H:%M:%S")
                         print(f"{oq[i].obsid} on {date_} is being downloaded, the uvot mode is {oq[i].uvot_mode}")
-                        oq[i].download(uvot = True, outdir = self.src_dir)
+                        oq[i].download(uvot = True, outdir = self.src_dir, match = ["*/uvot/image/*"])
                         src_obsid.append(oq[i].obsid)  # record the obsid for this source
                         src_saving_dir.append(self.src_dir + "/" + oq[i].obsid)  # record the path to obsids for this source
                         src_obsid_time.append(date_)
@@ -319,7 +319,7 @@ class UVOTZ():
                             self.sum_images(img_file, sum_type = "intermediate", summed_dir = summed_dir)
                             
                 intermediate_files = glob.glob(summed_dir + "/*fits")  # note fits are the summed sky images
-                for filter_ in self.full_filer_list:
+                for filter_ in self.full_filter_list:
                     # find the fits files according to the filer name
                     filter_fits = [fits for fits in intermediate_files if filter_ in fits]
                     if len(filter_fits) == 1:
@@ -369,21 +369,21 @@ class UVOTZ():
         hdul = fits.open(fits_file)
         FILTER = hdul[1].header["FILTER"]
         if FILTER == "B":
-            filter = "ubb"
+            filter_ = "ubb"
         elif FILTER == "UVM2":
-            filter = "um2"
+            filter_ = "um2"
         elif FILTER == "U":
-            filter = "uuu"
+            filter_ = "uuu"
         elif FILTER == "V":
-            filter = "uvv"
+            filter_ = "uvv"
         elif FILTER == "UVW1":
-            filter = "uw1"
+            filter_ = "uw1"
         elif FILTER == "UVW2":
-            filter = "uw2"
+            filter_ = "uw2"
         else:
             print("The filter of the image isn't in the filter list!")
 
-        return filter
+        return filter_
 
 
     def uvot_photometry(self, meta_data_dir = None):
@@ -402,32 +402,38 @@ class UVOTZ():
 
             src_name = df.loc[i, "name"].replace(" ", "_")
             
-            dict_new = {'source_name' : src_name,
-                        "uw2" : -99, 
-                        "uw2_err" : -99,
-                        "um2" : -99,
-                        "um2_err" : -99,
-                        "uw1" : -99,
-                        "uw1_err" : -99,
-                        "uuu" : -99,
-                        "uuu_err" : -99,
-                        "ubb" : -99,
-                        "ubb_err" : -99,
-                        "uvv" : -99,
-                        "uvv_err" : -99}
-            df_results = df_results.append(dict_new,ignore_index = True)
+            print(src_name)
+            
+            dict_new = {'source_name' : [src_name],
+                        "uw2" : [-99], 
+                        "uw2_err" : [-99],
+                        "um2" : [-99],
+                        "um2_err" : [-99],
+                        "uw1" : [-99],
+                        "uw1_err" : [-99],
+                        "uuu" : [-99],
+                        "uuu_err" : [-99],
+                        "ubb" : [-99],
+                        "ubb_err" : [-99],
+                        "uvv" : [-99],
+                        "uvv_err" : [-99]}
+            df_new_row = pd.DataFrame.from_dict(dict_new)
+            df_results = pd.concat([df_results, df_new_row],ignore_index = True)
+            
+            os.chdir(f"{self.data_dir}/{src_name}/Summed")
+            summed_dir = self.data_dir + f"/{src_name}" + "/Summed"
+            
+            final_fits = glob.glob("all*.fits")
 
-            for f in self.str_to_list(df.loc[0,"final_fits"]):
+            for fits_file in final_fits:
 
-                all_reg_files = self.str_to_list(df.loc[0,"reg_files"])
+                #all_reg_files = self.str_to_list(df.loc[0,"reg_files"])
 
                 # defining all kinds of inputs and outputs also the column names
-                fits_file = f
                 filter_ = self.extract_filter(fits_file)
                 filter_err = filter_ + "_err"
-                src_region_file = [x for x in all_reg_files if filter_ in x][0]  # I did this to make sure the we use the correct region file for the fit image (selection based on the filter of the fits file)
+                src_region_file = summed_dir + f"/{filter_}.reg"
                 print(src_region_file)
-                summed_dir = self.data_dir + f"/{src_name}" + "/Summed"
                 bkg_region_file = summed_dir + f"/bg{filter_}.reg"
                 outfits = summed_dir + f"/{filter_}_Results.fits"
                 outtxt = summed_dir + f"/{filter_}_Results.txt"
@@ -449,9 +455,8 @@ class UVOTZ():
                 df_results.loc[index, filter_err] = ab_err
 
                 df_results.to_csv(self.data_dir+"/Magnitudes.csv", sep = ",", index=False)
-            
-            
-        
+                
+            os.chdir(self.data_dir)
         
                 
                 

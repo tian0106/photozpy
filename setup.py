@@ -16,7 +16,8 @@ setup(
         "pandas",
         "tqdm",
         "astropy",
-        "swifttools"
+        "swifttools",
+        "ipywidgets"
         ]
 
 )
