@@ -2,6 +2,7 @@ from setuptools import setup, find_namespace_packages, find_packages
 
 setup(
     name = "photozpy",
+    python_requires=">=3.7,<3.10",
     version = "0.1",
     author = "Yong Sheng",
     author_email = "sheng2@clemson.edu",
@@ -17,7 +18,14 @@ setup(
         "tqdm",
         "astropy",
         "swifttools",
-        "ipywidgets"
+        "ipywidgets",
+        "jupyterlab",
+        "chardet",
+        "ccdproc",
+        "photutils",
+        "astroalign",
+        "scipy",
+        "matplotlib"
         ]
 
 )

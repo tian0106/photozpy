@@ -3,4 +3,7 @@
 .gitingore
 photozpy.egg-info/
 *__pycache__
+*.DS_Store*
+tests/
+src/photozpy/calibration/testing_files/
 

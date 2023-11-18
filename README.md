@@ -8,7 +8,7 @@ The photo-z analysis pipeline with python
 2. Create conda environment
 	Open your terminal
 	```bash
-	conda create --name photozpy python setuptools jupyterlab
+	conda create --name photozpy pip python=3.9
 	```
 
 3. Activate conda environment
@@ -27,7 +27,7 @@ The photo-z analysis pipeline with python
 5. Enter the *photozy* folder and install `photozpy` module into the photozpy environment
 	```shell
 	>>> cd photozpy
-	>>> python setup.py develop
+	>>> pip install -e .
 	```
 
 6. Once the installation is done, you can import and use `photozpy` module. Please go to the *tests* folder to try out the demos. 
