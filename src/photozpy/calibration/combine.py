@@ -15,6 +15,7 @@ from .headers import HeaderManipulation
 from ..collection_manager import CollectionManager
 from astropy.stats import mad_std, sigma_clipped_stats, median_absolute_deviation
 import numpy as np
+from pathlib import Path
 
 class Combine():
     
@@ -30,13 +31,10 @@ class Combine():
         ----------
         image_collection: ccdproc.ImageFileCollection; the collection of images
         telescope:
-        save_location: str; the location to save the combined images
-        overwrite; boolean; set True to overwrite the original files if the save_location is "" or the original path
         """
 
         self._image_collection = CollectionManager.refresh_collection(image_collection)
         self._telescope = telescope
-        self._location = self._image_collection.location
         
         
     @staticmethod
@@ -65,13 +63,13 @@ class Combine():
         return imtype_value
 
     def combine_bias_or_dark(self, image_type, method = "sigma clip", 
-                             sigma_clip_low=5, sigma_clip_high=5, quite = False):
+                             sigma_clip_low=5, sigma_clip_high=5, save_location = "", quite = False):
         """
         Combine bias or dark images
 
         Parameters
         ----------
-        image_type; str; Flat or Light
+        image_type; str; Bias or Dark
         method:
         sigma_clip_low
         sigma_clip_high
@@ -83,36 +81,43 @@ class Combine():
         # refresh the full collection
         self._image_collection = CollectionManager.refresh_collection(self._image_collection)
 
+        if save_location == "":
+            save_location = self._image_collection.location
+
         # Get the collection to combine and the object names
         collection_to_combine = CollectionManager.filter_collection(self._image_collection, **{"IMTYPE": [image_type]})
-        object_names = HeaderManipulation.get_header_values(collection_to_combine, header = "object")  # It seems only the lower cases work
+
+        # Get the object names (Bias or Dark)
+        object_names = HeaderManipulation.get_header_values(collection_to_combine, header = "object")  # It seems only the lower cases work for the header values
+        object_names = [*set(object_names)]  # remove duplicate elements
         # note that object_names inludes all the objects! (targets, bias ,dark and flat)
 
-        for object_name in object_names:
+        for object_name in object_names:  # note that bias and dark don't have filters
             # this is the list of the absolute path to the fits images to be combine
             image_list_to_combine = list(collection_to_combine.files_filtered(object = object_name, include_path = True))
-            image_names_to_combine = list(collection_to_combine.files_filtered(object = object_name, include_path = False))
-            image_number = len(image_list_to_combine)
+            # This is the list of the file names
+            image_filenames = list(collection_to_combine.files_filtered(object = object_name, include_path = False))
+            image_number = len(image_filenames)
 
             if image_number == 0:
-                print(f"No {object_name} found! Skipping......")
+                print(f"WARNING: No {object_name} found! Skipping......")
 
             elif image_number == 1:
                 print(f"Only one {object} image! Just copying and renaming the file.")
                 
-                for hdu in collection_temp.hdus(save_with_name = "_master", save_location = self._location, overwrite = True):
+                for hdu in collection_temp.hdus(save_with_name = "_master", save_location = save_location, overwrite = True):
                     hdu.header["IMTYPE"] = f"Master {image_type}"
-                    #hdu.header["NCOMBINE"] = int(image_number)  It seems already added into the combiner of ccdproc
+                    hdu.header["NCOMBINE"] = int(image_number)
                 
                 fname_stem = Path(image_list_to_combine[0]).stem  # get the filename stem: crab_sdss_g.fits --get--> crab_sdss_g
                 fname_suffix = Path(image_list_to_combine[0]).suffix
-                name_path = Path(self._location) / f"{fname_stem}_master.{fname_suffix}"  # the path to the saved file
+                name_path = Path(save_location) / f"{fname_stem}_master.{fname_suffix}"  # the path to the saved file
                 new_name_path = name_path.with_name(f"Master_{object_name}.{fname_suffix}")  # the new path
                 name_path.rename(new_name_path)  # rename the file, notice that you have to use the full path to rename, not just the file name
 
             elif image_number > 1:
                 if quite == False:
-                    print(f"Using {image_names_to_combine} to combine the {object_name} image!")
+                    print(f"Using {image_filenames} to combine the master {object_name} image!")
                 if method == "sigma clip":
                     combined = ccdpro_combine(image_list_to_combine,  
                                               method = "average",
@@ -125,22 +130,22 @@ class Combine():
                     raise ValueError("Unsupported combining method! What supported now is only sigma clip!")
                 
                 combined.meta["IMTYPE"] = f"Master {image_type}"
-                #combined.meta["NCOMBINE"] = int(number)
-                combined.write(self._location / f'Master_{object_name}.fits', overwrite=True)
+                combined.meta["NCOMBINE"] = int(image_number)
+                combined.write(Path(save_location) / f'Master_{object_name}.fits', overwrite=True)
                 print(f"{image_type} combined!")
                 print("----------------------------------------\n")
 
 
         # it will return an image collection that contains all the fits files including the created master bias
         new_image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
-        new_image_collection = ImageFileCollection(location = self._location, glob_include = "*.fits")
+        new_image_collection = ImageFileCollection(location = save_location, glob_include = "*.fits")
         self._image_collection = new_image_collection
 
         return
 
 
-    def combine_light_or_flat(self, image_type, method = "sigma clip", scale_funtion = "auto", 
-                              sigma_clip_low=5, sigma_clip_high=5, save_location = "", overwrite = True):
+    def combine_light_or_flat(self, image_type, method = "sigma clip", scale_function = "auto", 
+                              sigma_clip_low=5, sigma_clip_high=5, save_location = "", quite = False):
         """
         Combine light or flat images
 
@@ -152,33 +157,39 @@ class Combine():
         -------
         """
 
-        filters = telescope.filters
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection)
 
         if save_location == "":
             save_location = self._image_collection.location
 
-        # Get the object names
-        object_names = HeaderManipulation.get_header_values(self._image_collection, header = "object")  # It seems only the lower cases work
-        old_location = self._image_collection.location
-    
+        # flat or light IMTYPE has filters
+        filters = self._telescope.filters
+            
+        # first select image types (Flat or Light)
+        collection_to_combine = CollectionManager.filter_collection(self._image_collection, **{"IMTYPE": [image_type]})
 
+        # Get the object names (Flat or various target names)
+        object_names = HeaderManipulation.get_header_values(collection_to_combine, header = "object")  # It seems only the lower cases work
+        object_names = [*set(object_names)]  # remove duplicate elements
+    
         for object_name in object_names:
             for filter in filters:
-                # make sure only the fits image with the correct image_type requested. It also filters the object and filters.
-                collection_temp = CollectionManager.filter_collection(self._image_collection, **{"IMTYPE": [image_type], "OBJECT": [object_name], "FILTER": [filter]})
-                # this is the list of the absolute path to the fits images to be combine
-                image_list_to_combine = list(collection_temp.files_filtered(object = object_name, filter = filter, include_path = True))
-                image_number = len(image_list_to_combine)
+                # get the image collection in different filters and object names
+                collection_temp = CollectionManager.filter_collection(collection_to_combine, **{"OBJECT": [object_name], "FILTER": [filter]})
+                image_list_to_combine = list(collection_temp.files_filtered(include_path = True)) # this is the list of the absolute path to the fits images to be combined
+                image_filenames = list(collection_temp.files_filtered()) # this is the list of file names of the images to be combined
+                image_number = len(image_filenames)
                 
                 if image_number == 0:
-                    print(f"No {object_name} in {filter} filter found! Skipping......")
+                    print(f"WARNING: No {object_name} in {filter} filter found! Skipping......")
                     
                 elif image_number == 1:
-                    print(f"Only one {object} image in {filter} ({image_files})! Just copying and renaming the file.")
+                    print(f"Only one {object} image in {filter}! Just copying and renaming the file.")
                     
-                    for hdu in collection_temp.hdus(save_with_name = "_master", save_location = save_location, overwrite = overwrite):
+                    for hdu in collection_temp.hdus(save_with_name = "_master", save_location = save_location, overwrite = True):
                         hdu.header["IMTYPE"] = f"Master {image_type}"
-                        #hdu.header["NCOMBINE"] = int(image_number)  It seems already added into the combiner of ccdproc
+                        hdu.header["NCOMBINE"] = int(image_number)
                         
                         if image_type == "Light":  # need to update rdnoise and gain, I don't know why it's only for light images
                             rdnoise = hdu.header["RDNOISE"]
@@ -187,23 +198,23 @@ class Combine():
                             hdu.header["GAIN"] = gain*image_number  # update the gain
                             
                     fname_stem = Path(image_list_to_combine[0]).stem  # get the filename stem: crab_sdss_g.fits --get--> crab_sdss_g
-                    fname_suffix = Path(image_list_to_combine[0]).suffix
-                    name_path = Path(save_location) / f"{fname_stem}_master.{fname_suffix}"  # the path to the saved file
+                    fname_suffix = Path(image_list_to_combine[0]).suffix # get the filename suffix: crab_sdss_g.fits --get--> fits
+                    name_path = Path(save_location) / f"{fname_stem}_master.{fname_suffix}"  # the path to the copied file
                     new_name_path = name_path.with_name(f"Master_{object_name}_{filter}.{fname_suffix}")  # the new path
                     name_path.rename(new_name_path)  # rename the file, notice that you have to use the full path to rename, not just the file name
                     print("----------------------------------------------------------\n")
 
                 elif image_number > 1:
-                    print(f"Using {image_list_to_combine} to combine the master {object_name} image in {filter} filter!")
+                    print(f"Using {image_filenames} to combine the master {object_name} image in {filter} filter!")
                     if method == "sigma clip":
                         if image_type == "Flat":
                             if scale_function == "auto":
-                                scale_function = inv_median.__func__()
+                                scale_function_ = Combine.inv_median
                             
                             combined = ccdpro_combine(image_list_to_combine, 
-                                                      method = "average", scale = scale_function,
-                                                     sigma_clip=True, sigma_clip_low_thresh=sigma_clip_low, sigma_clip_high_thresh=sigma_clip_high,
-                                                     sigma_clip_func=np.ma.median, sigma_clip_dev_func=mad_std)
+                                                      method = "average", scale = scale_function_,
+                                                      sigma_clip=True, sigma_clip_low_thresh=sigma_clip_low, sigma_clip_high_thresh=sigma_clip_high,
+                                                      sigma_clip_func=np.ma.median, sigma_clip_dev_func=mad_std)
                         
                         elif image_type == "Light":
                             combined = ccdpro_combine(image_list_to_combine, 

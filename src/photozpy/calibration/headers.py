@@ -14,10 +14,11 @@ from pathlib import Path
 from tqdm import tqdm
 from ..collection_manager import CollectionManager
 from astropy.time import Time
+from pathlib import Path
 
 class HeaderCorrection():
 
-    def __init__(self, image_collection, telescope, target_dict = None):
+    def __init__(self, image_collection, telescope, save_location = "", target_dict = None, overwrite = True):
 
         """
         The input image collection.
@@ -26,6 +27,7 @@ class HeaderCorrection():
         ----------
         image_collection: ccdproc.ImageFileCollection; the collection of images
         telescope:
+        save_location: pathlib.Path; the location to save the edited files
         target_dict: dictionary; map the common part of the file names to a target, i.e. all the 
 
         Returns
@@ -48,7 +50,7 @@ class HeaderCorrection():
         return
 
 
-    def correct_filter_headers(self, input_collection = None, save_location = "", overwrite = True, **filter_dict):
+    def correct_filter_headers(self, input_collection = None, overwrite = True, save_location = "", **filter_dict):
         """
         Correct the filter names to standard ones for future analysis"
 
@@ -88,6 +90,7 @@ class HeaderCorrection():
             new_collection = ImageFileCollection(location = input_collection.location, filenames = input_collection.files)
         else:
             new_collection = ImageFileCollection(location = save_location, filenames = input_collection.files)
+            
         self._image_collection = new_collection
 
         print("Filter header edition completed!")
@@ -171,7 +174,8 @@ class HeaderCorrection():
                     target_name = [value for key,value in self._target_dict.items() if key in fits_path.stem]
                     target_name = [*set(target_name)]
                     if len(target_name) != 1:
-                        raise ValueError("The target dictionary you provided isn't correct!")
+                        pass
+                        print(f"There is no {fits_path.stem} file or the dictionary doesn't contain this file! Skipping.....")
                     else:
                         target_name = target_name[0]
                     header_dict = {"IMTYPE": ("Light", None),
@@ -186,7 +190,10 @@ class HeaderCorrection():
                                                            time_transformation = True, **header_dict)
 
         # refresh the image collection
-        new_image_collection = ImageFileCollection(location = self._image_collection.location, filenames = fits_files)
+        if save_location == "":
+            new_image_collection = ImageFileCollection(location = self._image_collection.location, filenames = fits_files)
+        else:
+            new_image_collection = ImageFileCollection(location = save_location, filenames = fits_files)
         self._image_collection = new_image_collection
 
         print("Header edition by file names completed!")
@@ -268,7 +275,7 @@ class HeaderManipulation():
 
         # crate the save_location if not exist
         if save_location != "":
-            Path(save_location).mkdir(parents=False, exist_ok=False)
+            Path(save_location).mkdir(parents=False, exist_ok=True)
         
         for hdu in input_collection.hdus(overwrite = overwrite, save_location = save_location):
             for key, value in headers_values.items():
@@ -318,7 +325,7 @@ class HeaderManipulation():
         mapped_filters = [*set(mapped_filters)] # remove the duplicated filter names
         
         if len(mapped_filters) == 0:
-            raise ValueError("Mapping the input filter failed! No mapped filter was found!")
+            raise ValueError("Mapping the input filter failed! No mapped filter {name} was found!")
         elif len(mapped_filters) > 1:
             raise ValueError("Mapping the input filter failed! More than two mapped filters are found!")
         else:
