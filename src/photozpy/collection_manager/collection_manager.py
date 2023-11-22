@@ -47,7 +47,7 @@ class CollectionManager():
     def unwarp_dictionary(dictionary):
     
         """
-        Unwarp a dictionary to produce a dictionary list whose element is a disctionary that contains all the combinations of 
+        Unwarp a dictionary to produce a dictionary list whose element is a dictionary that contains all the combinations of 
         values for the headers.
     
         Parameters

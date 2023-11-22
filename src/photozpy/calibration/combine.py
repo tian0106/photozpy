@@ -136,10 +136,8 @@ class Combine():
                 print("----------------------------------------\n")
 
 
-        # it will return an image collection that contains all the fits files including the created master bias
-        new_image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
-        new_image_collection = ImageFileCollection(location = save_location, glob_include = "*.fits")
-        self._image_collection = new_image_collection
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
 
         return
 
@@ -158,7 +156,7 @@ class Combine():
         """
 
         # refresh the full collection
-        self._image_collection = CollectionManager.refresh_collection(self._image_collection)
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
 
         if save_location == "":
             save_location = self._image_collection.location
@@ -237,5 +235,8 @@ class Combine():
                     combined.write(save_location / f"Master_{object_name}_{filter}.fits", overwrite = True)
                     print(f"{object_name} in {filter} filter combined!")
                     print("----------------------------------------------------------\n")
+
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
 
         return

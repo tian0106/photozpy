@@ -7,7 +7,7 @@ Main function:
 - apply the calibrations (master bias, master dark and master flat)
 """
 
-from ccdproc import ImageFileCollection, subtract_bias, subtract_dark
+from ccdproc import ImageFileCollection, subtract_bias, subtract_dark, flat_correct
 from .headers import HeaderManipulation
 from ..collection_manager import CollectionManager
 from astropy.stats import mad_std, sigma_clipped_stats, median_absolute_deviation
@@ -19,7 +19,7 @@ from pathlib import Path
 
 class Reduction():
 
-    def __init__(self, image_collection):
+    def __init__(self, image_collection, telescope):
 
         """
         Initial inputs for calibration.
@@ -35,7 +35,7 @@ class Reduction():
         """
 
         self._image_collection = CollectionManager.refresh_collection(image_collection, rescan = True)
-        self._location = self._image_collection.location
+        self._telescope = telescope
         
 
     def apply_bias_correction(self, save_location = ""):
@@ -51,7 +51,9 @@ class Reduction():
         """
 
         if save_location == "":
-            save_location = self._location
+            save_location = self._image_collection.location
+        else:
+            save_location = Path(save_location)
         
         # refresh the full collection
         self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
@@ -101,6 +103,7 @@ class Reduction():
 
         Parameters
         ----------
+        save_location; 
 
         Returns
         -------
@@ -109,7 +112,9 @@ class Reduction():
         """
 
         if save_location == "":
-            save_location = self._location
+            save_location = self._image_collection.location
+        else:
+            save_location = Path(save_location)
 
         # refresh the full collection
         self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
@@ -145,7 +150,59 @@ class Reduction():
                 hdul[0].header["DARKCORR"] = "Yes"
                 hdul.flush()
 
+        return
+
+    def apply_flat_correction(self, save_location = ""):
+
+        """
+        Apply flat correction to light images
+
+        Parameters
+        ----------
+        save_location
+
+        Returns
+        -------
+        None
+        """
 
         
-            
         
+        if save_location == "":
+            save_location = self._image_collection.location
+        else:
+            save_location = Path(save_location)
+
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
+
+        # let's loop by filters first
+        for filter in self._telescope.filters:
+            
+            master_flat_collection = CollectionManager.filter_collection(self._image_collection, **{"IMTYPE": ["Master Flat"], "FILTER": [filter]})
+            if len(master_flat_collection.files) != 1:
+                raise ValueError(f"The number of master flat in {filter} is not 1!")
+                
+            light_collection = CollectionManager.filter_collection(self._image_collection, **{"IMTYPE": ["Light"], "FILTER": [filter]})
+            if len(light_collection.files) == 0:
+                print(f"No light image in {filter}, Skipping")
+                
+            else:
+                for master_flat_ccd, flat_fname in master_flat_collection.ccds(return_fname = True):
+                    for object_ccd, fname in light_collection.ccds(return_fname = True):
+                        print(f"Using {flat_fname} correcting {fname}")
+                        object_ccd_corrected = flat_correct(object_ccd, master_flat_ccd)
+                        object_ccd_corrected.write(save_location / fname, overwrite=True)
+                        
+                        with fits.open(Path(save_location) / fname, mode = "update") as hdul:
+                            hdul[0].header["FLATCORR"] = "Yes"
+                            hdul.flush()
+
+        print("Flat correction finished")
+        print("----------------------------------------------------------\n")
+
+        return
+                        
+
+                
+      
