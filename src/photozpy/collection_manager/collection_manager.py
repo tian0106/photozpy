@@ -11,6 +11,7 @@ Main function:
 from ccdproc import ImageFileCollection
 from pathlib import Path
 from itertools import product
+import copy
 
 class CollectionManager():
 
@@ -58,6 +59,11 @@ class CollectionManager():
         -------
         dict_list: list; the list of all dictionaries that exhausts all the combination of the values.
         """
+
+        # make sure all the values are lists instead of strings or numbers
+        for header, value in dictionary.items():
+            if not isinstance(value, list):
+                dictionary[header] = [value]
         
         # get all the combinations of values from different headers
         values = list(product(*list(dictionary.values())))
@@ -86,7 +92,7 @@ class CollectionManager():
         -------
         new_image_collection
         """
-    
+
         dict_list = CollectionManager.unwarp_dictionary(headers_values)
     
         files = []
@@ -99,4 +105,33 @@ class CollectionManager():
     
         new_image_collection = ImageFileCollection(location = Path(image_collection.location), filenames = files)
     
+        return new_image_collection
+
+
+    @staticmethod
+    def delete_images(image_collection, image_list):
+
+        """
+        Delete the images in the image_list from the image_collection.
+
+        Parameters
+        ----------
+        image_collection
+        image_list: list; the list of image file names to be deleted
+
+        Returns
+        -------
+        new_image_collection
+        """
+
+        if not isinstance(image_list):
+            raise TypeError("image_list should be a list!")
+
+        file_names = copy.deepcopy(image_collection.files)
+
+        for i in image_list:
+            file_names.remove(i)
+
+        new_image_collection = ImageFileCollection(location = Path(image_collection.location), filenames = file_names)
+
         return new_image_collection

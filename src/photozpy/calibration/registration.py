@@ -8,3 +8,131 @@ Main function:
 - only Light type is accecpted
 """
 
+from ccdproc import ImageFileCollection
+from .headers import HeaderCorrection, HeaderManipulation
+from ..collection_manager import CollectionManager
+import numpy as np
+from pathlib import Path
+from astropy.io import fits
+import copy
+from astroalign import register
+
+class Registration():
+
+    def __init__(self, image_collection, telescope):
+
+        self._image_collection = image_collection
+        self._telescope = telescope
+
+
+    @staticmethod
+    def _Register_images(image_collection):
+
+        """
+        Register all the images with same object in the collection.
+
+        Parameters
+        ----------
+        image_collection
+
+        Returns
+        -------
+        new_image_collection
+        """
+
+        # get the image type and make sure the collection only has Light type images
+        image_type = HeaderManipulation.get_header_values(image_collection, header = "imtype")
+        if len(image_type) != 1:
+            raise TypeError(f"Only Light image type is supported for registration. You have {image_type}")
+        elif image_type[0] != "Light":
+            raise TypeError(f"Only Light image type is supported for registration. You have {image_type}")
+
+        # get all the object names, make sure all the object names are the same
+        object_name = HeaderManipulation.get_header_values(image_collection, header = "object")
+        if len(object_name) != 1:
+            raise ValueError("You have more than one object in the image collection!")
+
+        print(f"Aligning {object_name} ......")
+
+        # get the image collection that only contains the reference image
+        reference_collection = ImageFileCollection(location = Path(image_collection.location), filenames = image_collection.files[0])
+        reference_image_path = Path(reference_collection.files_filtered(include_path = True)[0])
+        refernece_image_name = reference_image_path.name
+
+        # get the image collection to be registered
+        register_collection = ImageFileCollection(location = Path(image_collection.location), filenames = image_collection.files[1:])
+        register_image_paths = register_collection.files_filtered(include_path = True)
+
+        # start image registeration, the files will be over written
+        for i in register_image_paths:
+            target_file_name = Path(i).name
+            print(f"Aligning {target_file_name} using {refernece_image_name}")
+
+            target_ext0 = fits.getdata(i, ext = 0)
+            header_target = fits.getheader(i)
+            target_data = target_ext0.byteswap().newbyteorder()
+
+            reference_ext0 = fits.getdata(reference_image_path, ext=0)
+            reference_data = reference_ext0.byteswap().newbyteorder()
+            
+            img_aligned, footprint = register(target_data, reference_data)
+
+            header_target["ALIGN"] = "Registered"
+            hdu = fits.PrimaryHDU(img_aligned, header_target)
+            hdu.writeto(i, overwrite=True)
+
+        # write the alignment keyword for the reference
+        with fits.open(reference_image_path, mode = "update") as hdul:
+            hdul[0].header["ALIGN"] = "Reference"
+            obj_name = hdul[0].header["OBJECT"]
+            hdul.flush()
+
+        print(f"Alignment of {obj_name} finished!")
+        print("----------------------------------------------------------\n")
+
+        return
+
+    def Register_images(self):
+
+        """
+        Register all the images with different objects in the collection.
+
+        Paremeters
+        ----------
+
+        Returns
+        -------
+        image_collection
+        """
+
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection)
+
+        # get all the Light type images
+        images_collection_to_register = CollectionManager.filter_collection(self._image_collection, **{"IMTYPE": "Light"})
+
+        # get the object names
+        object_names = HeaderManipulation.get_header_values(images_collection_to_register, header = "object")
+
+        for object_name in object_names:
+
+            # get the image collection with same object name
+            to_register = CollectionManager.filter_collection(images_collection_to_register, **{"OBJECT": object_name})
+
+            # register the images of same object
+            Registration._Register_images(to_register)
+
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection)
+        
+
+        
+        
+
+        
+
+        
+
+        
+
+        
