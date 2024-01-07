@@ -21,12 +21,13 @@ class Registration():
 
     def __init__(self, image_collection, telescope):
 
-        self._image_collection = image_collection
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(image_collection, rescan = True)
         self._telescope = telescope
 
 
     @staticmethod
-    def _Register_images(image_collection):
+    def _Register_images(image_collection, filter):
 
         """
         Register all the images with same object in the collection.
@@ -42,8 +43,10 @@ class Registration():
 
         # get the image type and make sure the collection only has Light type images
         image_type = HeaderManipulation.get_header_values(image_collection, header = "imtype")
+
         if len(image_type) != 1:
-            raise TypeError(f"Only Light image type is supported for registration. You have {image_type}")
+            print(f"Only Light image type is supported. You have more than one image type: {image_type}!")
+        
         elif image_type[0] != "Light":
             raise TypeError(f"Only Light image type is supported for registration. You have {image_type}")
 
@@ -55,12 +58,13 @@ class Registration():
         print(f"Aligning {object_name} ......")
 
         # get the image collection that only contains the reference image
-        reference_collection = ImageFileCollection(location = Path(image_collection.location), filenames = image_collection.files[0])
+        # Here I use the g filter particularly becasue it is more sensitive
+        reference_collection = CollectionManager.filter_collection(image_collection, **{"FILTER": filter})
         reference_image_path = Path(reference_collection.files_filtered(include_path = True)[0])
         refernece_image_name = reference_image_path.name
 
-        # get the image collection to be registered
-        register_collection = ImageFileCollection(location = Path(image_collection.location), filenames = image_collection.files[1:])
+        # get the image collection to be registered by removing the one used to register
+        register_collection = CollectionManager.delete_images(image_collection, refernece_image_name)
         register_image_paths = register_collection.files_filtered(include_path = True)
 
         # start image registeration, the files will be over written
@@ -92,13 +96,15 @@ class Registration():
 
         return
 
-    def Register_images(self):
+    def Register_images(self, filter):
 
         """
         Register all the images with different objects in the collection.
 
         Paremeters
         ----------
+        filter: string; the filter that the reference image should have. The reason for this is to make sure
+                        that the reference image relatively sensitive to have more sources for registration.
 
         Returns
         -------
@@ -120,7 +126,7 @@ class Registration():
             to_register = CollectionManager.filter_collection(images_collection_to_register, **{"OBJECT": object_name})
 
             # register the images of same object
-            Registration._Register_images(to_register)
+            Registration._Register_images(to_register, filter = filter)
 
         # refresh the full collection
         self._image_collection = CollectionManager.refresh_collection(self._image_collection)

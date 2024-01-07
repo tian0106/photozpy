@@ -124,8 +124,8 @@ class CollectionManager():
         new_image_collection
         """
 
-        if not isinstance(image_list):
-            raise TypeError("image_list should be a list!")
+        if not isinstance(image_list, list):
+            image_list = [image_list]
 
         file_names = copy.deepcopy(image_collection.files)
 

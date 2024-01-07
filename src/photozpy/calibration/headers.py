@@ -38,7 +38,8 @@ class HeaderCorrection():
         if not isinstance(image_collection, ImageFileCollection):
             raise TypeError("image_collection shoule be an ImageFileCollection objec!")
         else:
-            self._image_collection = image_collection
+            # refresh the full collection
+            self._image_collection = CollectionManager.refresh_collection(image_collection, rescan = True)
 
         if not isinstance(telescope, Telescope):
             raise TypeError("telescope should be a Telescope oject!")
@@ -66,8 +67,11 @@ class HeaderCorrection():
         """
 
         print("Editting filter headers......")
+        
 
         if input_collection == None:
+            # refresh the full collection
+            self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
             input_collection = self._image_collection
 
         # only include IMTYPE is Flat or Light
@@ -80,6 +84,7 @@ class HeaderCorrection():
 
         for hdu in tqdm(fl_collection.hdus(overwrite = overwrite, save_location = save_location)):
             old_filter = hdu.header["FILTER"]
+            name = hdu.header["OBJECT"]
             if old_filter in self._telescope.filters:
                 pass
             else:
@@ -96,7 +101,7 @@ class HeaderCorrection():
         print("Filter header edition completed!")
         print("----------------------------------------\n")
 
-        return new_collection
+        return
         
 
     def correct_headers_by_filename(self, save_location = "", overwrite = True, type = None):
@@ -117,14 +122,10 @@ class HeaderCorrection():
         new_collection: ccdproc.ImageFileCollection; The new image collection.
         """
         
-        # image_location = self._image_collection.location
-        # fits_files = []
-        # for i in self._image_collection.files:
-        #     fits_file = image_location.glob(i)
-        #     fits_file = sorted(fits_file)[0] # convert a generator to a list, the list only contain one object
-        #     fits_files += [fits_file]
 
         print("Editing headers by file names......")
+        # refresh the full collection
+        self._image_collection = CollectionManager.refresh_collection(self._image_collection, rescan = True)
 
         fits_files = self._image_collection.files
         
@@ -199,7 +200,7 @@ class HeaderCorrection():
         print("Header edition by file names completed!")
         print("----------------------------------------\n")
 
-        return new_image_collection
+        return
 
     @property
     def image_collection(self):
@@ -317,7 +318,7 @@ class HeaderManipulation():
                        "SDSS_g": "SDSS_g'", 
                        "SDSS_r": "SDSS_r'", 
                        "SDSS_i": "SDSS_i'", 
-                       "SDSS_z": "SDSS_z"}
+                       "SDSS_z": "SDSS_z'"}
         else:
             mappers = filter_dict
             
